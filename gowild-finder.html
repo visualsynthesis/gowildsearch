@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoWild Flight Finder</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='99'>✈</text></svg>">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --green:#00814A;--green-light:#e6f5ee;--green-mid:#b3e0cc;
+            --bg:#f7f8fa;--bg2:#ffffff;--card:#ffffff;
+            --text:#1a1a2e;--muted:#6b7280;--border:#e2e5ea;
+            --warn:#92400e;--warn-bg:#fef3c7;--warn-border:#fcd34d;
+            --danger:#dc2626;--danger-bg:#fef2f2;--danger-light:#fecaca;
+            --indigo:#4f46e5;--indigo-bg:#eef2ff;
+            --radius:12px;--shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+            --shadow-lg:0 4px 12px rgba(0,0,0,0.08);
+        }
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased}
+        a{color:inherit;text-decoration:none}
+
+        /* ===== HEADER ===== */
+        .header{background:var(--green);color:#fff;padding:14px 36px;display:flex;align-items:center;gap:16px;justify-content:space-between;cursor:pointer}
+        .header h1{font-size:22px;font-weight:700;display:flex;align-items:center;gap:8px}
+        .header .sub{font-size:12px;opacity:0.8;font-weight:400}
+        .header .tips{font-size:11px;opacity:0.7;display:flex;gap:16px}
+
+        /* ===== SEARCH BAR ===== */
+        .search-bar{background:var(--bg2);padding:14px 36px;border-bottom:1px solid var(--border);display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;box-shadow:var(--shadow)}
+        .fg{display:flex;flex-direction:column;gap:4px}
+        .fg label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted)}
+        .fg input,.fg select{padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:#fff;color:var(--text);font-size:13px;outline:none;transition:all .2s}
+        .fg input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(0,129,74,0.12)}
+
+        /* Airport dropdown */
+        .aw{position:relative}
+        .ai{width:260px}
+        .ad{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid var(--border);border-radius:10px;max-height:320px;overflow-y:auto;z-index:999;display:none;box-shadow:var(--shadow-lg)}
+        .ad.show{display:block}
+        .ao{padding:9px 12px;cursor:pointer;font-size:13px;transition:background .1s;display:flex;justify-content:space-between;border-bottom:1px solid #f3f4f6}
+        .ao:last-child{border-bottom:none}
+        .ao:hover{background:var(--green-light)}
+        .ao .c{font-weight:700;color:var(--green)}
+
+        /* Buttons */
+        .btn{padding:8px 18px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+        .btn-g{background:var(--green);color:#fff}
+        .btn-g:hover{background:#006b3e;transform:translateY(-1px);box-shadow:var(--shadow)}
+
+        /* Trip type toggle */
+        .trip-toggle{padding:6px 12px;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s}
+        .trip-toggle.on{background:var(--green);color:#fff;font-weight:600}
+
+        /* ===== MAIN ===== */
+        .main{padding:20px 36px;max-width:1500px;margin:0 auto}
+
+        /* Info line (compact) */
+        .info-line{font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6}
+        .info-line b{color:var(--green)}
+
+        /* Note box (blackout info) */
+        .warn-box{background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:8px 14px;margin-bottom:14px;font-size:11px;color:var(--muted);display:none;line-height:1.5}
+
+        /* Section headings */
+        .section-title{font-size:18px;font-weight:700;margin-bottom:4px;color:var(--text)}
+        .section-sub{font-size:12px;color:var(--muted);margin-bottom:14px}
+
+        /* Filter chips */
+        .filter-bar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+        .filter-chip{padding:5px 14px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--muted);transition:all .2s}
+        .filter-chip.on{border-color:var(--green);color:#fff;background:var(--green)}
+        .filter-chip:hover:not(.on){border-color:var(--green);color:var(--green)}
+        .filter-group{display:flex;gap:6px;align-items:center}
+        .filter-sep{width:1px;height:22px;background:var(--border);margin:0 4px}
+
+        /* ===== STATS ===== */
+        .stats{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+        .stat{background:#fff;border-radius:var(--radius);padding:12px 18px;border:1px solid var(--border);min-width:110px;box-shadow:var(--shadow)}
+        .stat .num{font-size:24px;font-weight:800;color:var(--green)}
+        .stat .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:1px;font-weight:500}
+
+        /* ===== DESTINATION GRID ===== */
+        .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+        .card{background:#fff;border-radius:var(--radius);padding:16px;border:1.5px solid var(--border);transition:all .2s;cursor:pointer;display:block;position:relative;box-shadow:var(--shadow)}
+        .card:hover{border-color:var(--green);transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+        .card .code{font-size:26px;font-weight:800;color:var(--green)}
+        .card .name{font-size:13px;margin-top:2px;font-weight:500}
+        .card .region{font-size:11px;color:var(--muted);margin-top:1px}
+        .card .intl-badge{position:absolute;top:12px;right:12px;background:var(--indigo-bg);color:var(--indigo);font-size:9px;font-weight:700;padding:2px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:0.3px}
+        .card .seasonal-badge{position:absolute;top:12px;right:12px;background:#fef3c7;color:#92400e;font-size:9px;font-weight:600;padding:2px 7px;border-radius:5px;letter-spacing:0.2px}
+        .card .intl-badge+.seasonal-badge{top:32px}
+        .card .freq-note{margin-top:5px;font-size:10px;color:#92400e;font-weight:500}
+        .card.low-freq{border-left:4px solid #f59e0b}
+        .card.low-freq .code{color:#b45309}
+        .low-freq-warn{background:#fef3c7;color:#92400e;font-size:10px;padding:5px 8px;border-radius:6px;margin-top:8px;font-weight:500;line-height:1.4}
+        .card .no-route-note{margin-top:6px;font-size:10px;color:var(--danger);font-weight:500}
+        .card.no-route{opacity:0.45;border-style:dashed}
+        .card.no-route:hover{opacity:0.7;border-color:var(--muted);transform:translateY(-1px)}
+        .card.no-route .code{color:var(--muted)}
+        .card .hint{margin-top:8px;font-size:10px;color:var(--muted);opacity:0;transition:opacity .2s}
+        .card:hover .hint{opacity:1}
+        .route-section-label{font-size:13px;font-weight:700;color:var(--green);margin:20px 0 10px;display:flex;align-items:center;gap:8px}
+        .route-section-label .count{font-weight:400;color:var(--muted);font-size:11px}
+        .route-section-label:first-of-type{margin-top:0}
+        .no-route-divider{border:none;border-top:1px dashed var(--border);margin:24px 0 8px}
+
+        /* Empty state */
+        .empty-state{text-align:center;padding:32px 20px;color:var(--muted)}
+        .empty-state .icon{font-size:36px;margin-bottom:8px}
+        .empty-state h3{font-size:16px;color:var(--text);margin-bottom:4px;font-weight:600}
+        .empty-state p{font-size:13px}
+
+        /* ===== BOOK NOW BANNER ===== */
+        .book-now h2{font-size:17px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+        .book-now .bn-sub{font-size:12px;color:var(--muted);margin:2px 0 12px;line-height:1.5}
+        .bn-label{font-size:13px;font-weight:700;color:var(--green);margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+        .bn-label .bn-count{font-weight:400;color:var(--muted);font-size:11px}
+        .bn-label .bn-date{font-weight:500;color:var(--muted);font-size:11px;margin-left:auto}
+        .bn-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+        .bn-scroll::-webkit-scrollbar{height:4px}
+        .bn-scroll::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:2px}
+        .sug-card{flex:0 0 155px;background:#fff;border-radius:var(--radius);padding:12px 14px;border:1.5px solid var(--border);transition:all .2s;cursor:pointer;display:block;box-shadow:var(--shadow);scroll-snap-align:start;position:relative}
+        .sug-card:hover{border-color:var(--green);transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+        .sug-card .sc-code{font-size:20px;font-weight:800;color:var(--green)}
+        .sug-card .sc-name{font-size:12px;font-weight:500;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .sug-card .sc-region{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .sug-card .sc-date{font-size:11px;color:var(--green);font-weight:600;margin-top:6px}
+        .sug-card .sc-freq{font-size:9px;color:#92400e;margin-top:2px;font-weight:500}
+        .sug-card .sc-intl{position:absolute;top:8px;right:10px;background:var(--indigo-bg);color:var(--indigo);font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase}
+        .sug-card.sc-low{border-left:3px solid #f59e0b}
+        .sug-card.sc-low .sc-code{color:#b45309}
+        .bn-footer{text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+
+        /* ===== CALENDAR CAROUSEL ===== */
+        .cal-section{margin-bottom:20px}
+        .cal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+        .cal-header h2{font-size:15px;font-weight:700;color:var(--text)}
+        .cal-nav{display:flex;gap:6px;align-items:center}
+        .cal-nav button{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s}
+        .cal-nav button:hover{border-color:var(--green);color:var(--green)}
+        .cal-nav button:disabled{opacity:0.3;cursor:not-allowed}
+        .cal-legend{display:flex;gap:14px;font-size:10px;color:var(--muted)}
+        .cal-legend i{display:flex;align-items:center;gap:5px;font-style:normal;font-weight:500}
+        .cal-legend .dot{width:10px;height:10px;border-radius:3px}
+
+        .cals{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+        .cal{background:#fff;border-radius:var(--radius);padding:14px;border:1px solid var(--border);box-shadow:var(--shadow)}
+        .cal h3{font-size:13px;font-weight:700;margin-bottom:10px;text-align:center;color:var(--text)}
+        .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
+        .cal-hd{text-align:center;font-size:9px;font-weight:700;color:var(--muted);padding:4px 0;text-transform:uppercase;letter-spacing:0.3px}
+        .cal-d{text-align:center;padding:6px 2px;font-size:11px;border-radius:6px;cursor:pointer;transition:all .12s;user-select:none;font-weight:500;color:var(--text)}
+        .cal-d:hover:not(.bo):not(.empty):not(.past){background:var(--green-light);color:var(--green)}
+        .cal-d.bo{background:var(--danger-bg);color:var(--danger);cursor:not-allowed;text-decoration:line-through;font-weight:600}
+        .cal-d.today{outline:2px solid var(--green);outline-offset:-2px;font-weight:700}
+        .cal-d.sel{background:var(--green);color:#fff;font-weight:700}
+        .cal-d.empty{cursor:default}
+        .cal-d.past{opacity:0.25;cursor:default;color:var(--muted)}
+        .cal-d.in-range{background:var(--green-light);color:var(--green)}
+
+        /* ===== RESPONSIVE ===== */
+        @media(max-width:1100px){
+            .cals{grid-template-columns:repeat(3,1fr)}
+        }
+        @media(max-width:768px){
+            .header,.search-bar,.main{padding:14px}
+            .ai{width:100%}
+            .grid{grid-template-columns:1fr 1fr}
+            .cals{grid-template-columns:repeat(2,1fr)}
+            .header .tips{display:none}
+        }
+        @media(max-width:480px){
+            .grid{grid-template-columns:1fr}
+            .cals{grid-template-columns:1fr}
+        }
+
+        ::-webkit-scrollbar{width:6px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+        ::-webkit-scrollbar-thumb:hover{background:#9ca3af}
+    </style>
+</head>
+<body>
+
+<div class="header" onclick="window.location.reload()">
+    <div>
+        <h1><span style="font-size:24px">&#9992;</span> GoWild Flight Finder</h1>
+    </div>
+    <div class="tips">
+        <span><b>Domestic:</b> book 1 day before</span>
+        <span><b>Int'l:</b> book 10 days before</span>
+        <span><b>Tip:</b> Log into Frontier first to see $0.01 fares</span>
+    </div>
+</div>
+
+<div class="search-bar">
+    <div class="fg">
+        <label>Your Airport</label>
+        <div class="aw">
+            <input type="text" class="ai" id="origin" placeholder="Type airport code or city..." autocomplete="off">
+            <div class="ad" id="dropdown"></div>
+        </div>
+    </div>
+    <div class="fg">
+        <label>Trip Type</label>
+        <div style="display:flex;gap:2px;background:var(--bg);border-radius:8px;padding:2px;border:1.5px solid var(--border)">
+            <button type="button" class="trip-toggle on" id="togRT" onclick="setTripType('rt')">Round Trip</button>
+            <button type="button" class="trip-toggle" id="togOW" onclick="setTripType('ow')">One Way</button>
+        </div>
+    </div>
+    <div class="fg">
+        <label>Depart</label>
+        <input type="date" id="dateFrom">
+    </div>
+    <div class="fg" id="returnGroup">
+        <label>Return</label>
+        <input type="date" id="dateTo">
+    </div>
+    <div class="fg">
+        <label>&nbsp;</label>
+        <button class="btn btn-g" id="goBtn" onclick="showResults()">Find Flights</button>
+    </div>
+</div>
+
+<div class="main">
+    <div class="warn-box" id="blackoutWarn"></div>
+
+    <!-- Calendar carousel -->
+    <div class="cal-section">
+        <div class="cal-header">
+            <div style="display:flex;align-items:center;gap:16px">
+                <h2>Blackout Calendar</h2>
+                <div class="cal-legend">
+                    <i><span class="dot" style="background:var(--danger-light);border:1px solid var(--danger)"></span> Blackout</i>
+                    <i><span class="dot" style="background:var(--green)"></span> Selected</i>
+                    <i><span class="dot" style="outline:2px solid var(--green);outline-offset:-1px"></span> Today</i>
+                </div>
+            </div>
+            <div class="cal-nav">
+                <button id="calPrev" onclick="shiftCal(-1)">&#8249;</button>
+                <span style="font-size:11px;color:var(--muted);min-width:24px;text-align:center" id="calPage"></span>
+                <button id="calNext" onclick="shiftCal(1)">&#8250;</button>
+            </div>
+        </div>
+        <div class="cals" id="cals"></div>
+        <div style="text-align:center;margin-top:6px;font-size:10px;color:var(--muted)">Click any date to set your travel range</div>
+    </div>
+
+    <div id="content">
+        <div class="empty-state">
+            <div class="icon">&#127758;</div>
+            <h3>Pick your dates above, then hit Find Flights</h3>
+            <p>You'll see every nonstop Frontier route from ATL with links to book.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===== AIRPORT DATA =====
+const AIRPORTS = [
+    {code:'ABQ',name:'Albuquerque',region:'NM'},
+    {code:'ACY',name:'Atlantic City',region:'NJ'},
+    {code:'ATL',name:'Atlanta',region:'GA'},
+    {code:'AUA',name:'Aruba',region:'Aruba',intl:true},
+    {code:'AUS',name:'Austin',region:'TX'},
+    {code:'BDL',name:'Hartford',region:'CT'},
+    {code:'BHM',name:'Birmingham',region:'AL'},
+    {code:'BNA',name:'Nashville',region:'TN'},
+    {code:'BOI',name:'Boise',region:'ID'},
+    {code:'BOS',name:'Boston',region:'MA'},
+    {code:'BUF',name:'Buffalo',region:'NY'},
+    {code:'BUR',name:'Burbank',region:'CA'},
+    {code:'BWI',name:'Baltimore',region:'MD'},
+    {code:'CHS',name:'Charleston',region:'SC'},
+    {code:'CID',name:'Cedar Rapids',region:'IA'},
+    {code:'CLE',name:'Cleveland',region:'OH'},
+    {code:'CLT',name:'Charlotte',region:'NC'},
+    {code:'CMH',name:'Columbus',region:'OH'},
+    {code:'COS',name:'Colorado Springs',region:'CO'},
+    {code:'CVG',name:'Cincinnati',region:'OH'},
+    {code:'DAL',name:'Dallas Love Field',region:'TX'},
+    {code:'DCA',name:'Washington Reagan',region:'DC'},
+    {code:'DEN',name:'Denver',region:'CO'},
+    {code:'DFW',name:'Dallas/Fort Worth',region:'TX'},
+    {code:'DSM',name:'Des Moines',region:'IA'},
+    {code:'DTW',name:'Detroit',region:'MI'},
+    {code:'ELP',name:'El Paso',region:'TX'},
+    {code:'EWR',name:'Newark',region:'NJ'},
+    {code:'FAT',name:'Fresno',region:'CA'},
+    {code:'FLL',name:'Fort Lauderdale',region:'FL'},
+    {code:'GRR',name:'Grand Rapids',region:'MI'},
+    {code:'GSP',name:'Greenville',region:'SC'},
+    {code:'HNL',name:'Honolulu',region:'HI'},
+    {code:'HOU',name:'Houston Hobby',region:'TX'},
+    {code:'IAD',name:'Washington Dulles',region:'VA'},
+    {code:'IAH',name:'Houston Bush',region:'TX'},
+    {code:'IND',name:'Indianapolis',region:'IN'},
+    {code:'ISP',name:'Long Island',region:'NY'},
+    {code:'JAX',name:'Jacksonville',region:'FL'},
+    {code:'LAS',name:'Las Vegas',region:'NV'},
+    {code:'LAX',name:'Los Angeles',region:'CA'},
+    {code:'LGA',name:'New York LaGuardia',region:'NY'},
+    {code:'LIT',name:'Little Rock',region:'AR'},
+    {code:'MCI',name:'Kansas City',region:'MO'},
+    {code:'MCO',name:'Orlando',region:'FL'},
+    {code:'MDW',name:'Chicago Midway',region:'IL'},
+    {code:'MEM',name:'Memphis',region:'TN'},
+    {code:'MIA',name:'Miami',region:'FL'},
+    {code:'MKE',name:'Milwaukee',region:'WI'},
+    {code:'MSP',name:'Minneapolis',region:'MN'},
+    {code:'MSY',name:'New Orleans',region:'LA'},
+    {code:'MYR',name:'Myrtle Beach',region:'SC'},
+    {code:'OAK',name:'Oakland',region:'CA'},
+    {code:'OKC',name:'Oklahoma City',region:'OK'},
+    {code:'OMA',name:'Omaha',region:'NE'},
+    {code:'ONT',name:'Ontario',region:'CA'},
+    {code:'ORD',name:'Chicago O\'Hare',region:'IL'},
+    {code:'PBI',name:'West Palm Beach',region:'FL'},
+    {code:'PDX',name:'Portland',region:'OR'},
+    {code:'PHL',name:'Philadelphia',region:'PA'},
+    {code:'PHX',name:'Phoenix',region:'AZ'},
+    {code:'PIT',name:'Pittsburgh',region:'PA'},
+    {code:'PLS',name:'Providenciales',region:'Turks & Caicos',intl:true},
+    {code:'PNS',name:'Pensacola',region:'FL'},
+    {code:'PVD',name:'Providence',region:'RI'},
+    {code:'RDU',name:'Raleigh/Durham',region:'NC'},
+    {code:'RIC',name:'Richmond',region:'VA'},
+    {code:'RNO',name:'Reno',region:'NV'},
+    {code:'RSW',name:'Fort Myers',region:'FL'},
+    {code:'SAL',name:'San Salvador',region:'El Salvador',intl:true},
+    {code:'SAN',name:'San Diego',region:'CA'},
+    {code:'SAP',name:'San Pedro Sula',region:'Honduras',intl:true},
+    {code:'SAT',name:'San Antonio',region:'TX'},
+    {code:'SAV',name:'Savannah',region:'GA'},
+    {code:'SDF',name:'Louisville',region:'KY'},
+    {code:'SDQ',name:'Santo Domingo',region:'Dominican Republic',intl:true},
+    {code:'SEA',name:'Seattle',region:'WA'},
+    {code:'SFO',name:'San Francisco',region:'CA'},
+    {code:'SJC',name:'San Jose',region:'CA'},
+    {code:'SLC',name:'Salt Lake City',region:'UT'},
+    {code:'SMF',name:'Sacramento',region:'CA'},
+    {code:'SNA',name:'Orange County',region:'CA'},
+    {code:'SRQ',name:'Sarasota',region:'FL'},
+    {code:'STL',name:'St. Louis',region:'MO'},
+    {code:'SXM',name:'St. Maarten',region:'Sint Maarten',intl:true},
+    {code:'SYR',name:'Syracuse',region:'NY'},
+    {code:'TPA',name:'Tampa',region:'FL'},
+    {code:'TTN',name:'Trenton',region:'NJ'},
+    {code:'TUL',name:'Tulsa',region:'OK'},
+    {code:'TUS',name:'Tucson',region:'AZ'},
+    {code:'XNA',name:'Fayetteville',region:'AR'},
+    // International
+    {code:'CUN',name:'Cancun',region:'Mexico',intl:true},
+    {code:'GUA',name:'Guatemala City',region:'Guatemala',intl:true},
+    {code:'LIR',name:'Liberia',region:'Costa Rica',intl:true},
+    {code:'MBJ',name:'Montego Bay',region:'Jamaica',intl:true},
+    {code:'NAS',name:'Nassau',region:'Bahamas',intl:true},
+    {code:'POP',name:'Puerto Plata',region:'Dominican Republic',intl:true},
+    {code:'PUJ',name:'Punta Cana',region:'Dominican Republic',intl:true},
+    {code:'PVR',name:'Puerto Vallarta',region:'Mexico',intl:true},
+    {code:'SJD',name:'San Jose del Cabo',region:'Mexico',intl:true},
+    {code:'SJO',name:'San Jose',region:'Costa Rica',intl:true},
+    {code:'SJU',name:'San Juan',region:'Puerto Rico',intl:true},
+    {code:'STT',name:'St. Thomas',region:'US Virgin Islands',intl:true},
+    {code:'STX',name:'St. Croix',region:'US Virgin Islands',intl:true},
+];
+
+// ===== KNOWN ROUTES FROM EACH HUB =====
+const ROUTES = {
+    'ATL': {
+        routes: ['AUA','AUS','BDL','BNA','BOS','CLE','CLT','CMH','CUN','CVG','DEN','DFW','DTW',
+                 'EWR','FLL','GUA','IAD','IND','JAX','LAS','LAX','LGA','LIR','MBJ','MCO','MDW',
+                 'MIA','MKE','MSP','MSY','MYR','NAS','ONT','ORD','PBI','PHL','PHX','PIT',
+                 'PLS','PNS','PUJ','PVR','RDU','RSW','SAL','SAN','SAP','SDQ','SFO','SJD',
+                 'SJO','SJU','SLC','SRQ','STL','SXM','TPA','TTN'],
+    },
+    'DEN': {
+        routes: ['ABQ','ATL','AUS','BNA','BOI','BOS','BUR','CHS','CID','CLE','CLT','CMH',
+                 'COS','CUN','CVG','DAL','DCA','DFW','DSM','DTW','ELP','FAT','FLL','GRR',
+                 'HNL','HOU','IAD','IAH','IND','JAX','LAS','LAX','LGA','LIR','MBJ','MCI',
+                 'MCO','MDW','MEM','MIA','MKE','MSP','MSY','MYR','OAK','OKC','OMA','ONT',
+                 'ORD','PBI','PDX','PHL','PHX','PIT','PNS','PUJ','PVR','RDU','RIC','RNO',
+                 'RSW','SAN','SAT','SEA','SFO','SJC','SJD','SJU','SLC','SMF','SNA','SRQ',
+                 'STL','TPA','TUL','TUS','XNA'],
+    },
+    'MCO': {
+        routes: ['ABQ','ATL','AUS','BDL','BNA','BOS','BUF','BWI','CLE','CLT','CMH','CUN',
+                 'CVG','DCA','DEN','DFW','DSM','DTW','ELP','EWR','FLL','GRR','GSP','GUA',
+                 'HOU','IAD','IAH','IND','ISP','JAX','LAS','LAX','LGA','LIR','LIT','MBJ',
+                 'MCI','MDW','MEM','MIA','MKE','MSP','MSY','MYR','NAS','OAK','OKC','OMA',
+                 'ONT','ORD','PBI','PDX','PHL','PHX','PIT','PNS','POP','PUJ','PVD','RDU',
+                 'RIC','RNO','SAN','SAT','SDF','SEA','SFO','SJC','SJD','SJO','SJU','SLC',
+                 'SMF','SNA','STL','STT','STX','SYR','TUL','XNA'],
+    }
+};
+
+// ===== SEASONAL ROUTE DETAILS =====
+const SEASONAL = {
+    'ATL': {
+        'AUA': { months:[5,6,7,8], freq:'1x/wk', label:'Summer only' },
+        'GUA': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'LIR': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'MBJ': { months:[11,12,1,2,3,4], freq:'2x/wk', label:'Winter' },
+        'NAS': { months:[12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'ONT': { months:[5,6,7,8,9,10,11], freq:'2-3x/wk', label:'Seasonal' },
+        'PLS': { months:[12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'PUJ': { months:[11,12,1,2,3,4], freq:'2x/wk', label:'Winter' },
+        'PVR': { months:[12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'SAL': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'SAP': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'SDQ': { months:[11,12,1,2,3,4], freq:'2x/wk', label:'Winter' },
+        'SJD': { months:[12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'SJO': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'SXM': { months:[12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+    },
+    'DEN': {
+        'CUN': { months:[11,12,1,2,3,4], freq:'3x/wk', label:'Winter' },
+        'HNL': { months:[11,12,1,2,3], freq:'2x/wk', label:'Winter' },
+        'LIR': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'MBJ': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'PUJ': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'PVR': { months:[11,12,1,2,3,4], freq:'2x/wk', label:'Winter' },
+        'SJD': { months:[11,12,1,2,3,4], freq:'2x/wk', label:'Winter' },
+        'SJU': { months:[11,12,1,2,3,4], freq:'2x/wk', label:'Winter' },
+    },
+    'MCO': {
+        'CUN': { months:[11,12,1,2,3,4,5,6], freq:'daily', label:'Peak season' },
+        'GUA': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'LIR': { months:[11,12,1,2,3,4], freq:'2x/wk', label:'Winter' },
+        'MBJ': { months:[11,12,1,2,3,4,5,6], freq:'3x/wk', label:'Peak season' },
+        'NAS': { months:[11,12,1,2,3,4], freq:'2x/wk', label:'Winter' },
+        'POP': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'PUJ': { months:[11,12,1,2,3,4], freq:'3x/wk', label:'Winter' },
+        'SJD': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+        'SJO': { months:[11,12,1,2,3,4], freq:'2x/wk', label:'Winter' },
+        'SJU': { months:[11,12,1,2,3,4,5,6,7,8], freq:'daily', label:'Most of year' },
+        'STT': { months:[11,12,1,2,3,4], freq:'2x/wk', label:'Winter' },
+        'STX': { months:[11,12,1,2,3,4], freq:'1x/wk', label:'Winter' },
+    }
+};
+
+function hasDirectRoute(originCode, destCode) {
+    const hub = ROUTES[originCode];
+    if (!hub) return null;
+    return hub.routes.includes(destCode);
+}
+function getSeasonalInfo(originCode, destCode) {
+    const hubSeasonal = SEASONAL[originCode];
+    if (!hubSeasonal) return null;
+    return hubSeasonal[destCode] || null;
+}
+function isSeasonalRoute(originCode, destCode) { return !!getSeasonalInfo(originCode, destCode); }
+function isRouteInactive(originCode, destCode, month) {
+    const info = getSeasonalInfo(originCode, destCode);
+    if (!info) return false;
+    return !info.months.includes(month);
+}
+
+// ===== BLACKOUT DATES =====
+function buildBlackoutSet() {
+    const dates = [];
+    function addRange(year, month, from, to) {
+        for (let d = from; d <= to; d++) dates.push(`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+    }
+    function addDates(year, month, ...days) {
+        days.forEach(d => dates.push(`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`));
+    }
+    addDates(2026,1, 1,3,4,15,16,19);
+    addDates(2026,2, 12,13,16);
+    addRange(2026,3, 13,15); addRange(2026,3, 20,22); addRange(2026,3, 27,29);
+    addRange(2026,4, 3,6); addRange(2026,4, 10,12);
+    addDates(2026,5, 21,22,25);
+    addRange(2026,6, 25,28);
+    addRange(2026,7, 2,6);
+    addDates(2026,9, 3,4,7);
+    addDates(2026,10, 8,9,11,12);
+    addDates(2026,11, 24,25,28,29,30);
+    addRange(2026,12, 19,24); addRange(2026,12, 26,31);
+    addRange(2027,1, 1,3); addDates(2027,1, 14,15,18);
+    addDates(2027,2, 11,12,15);
+    addRange(2027,3, 12,14); addRange(2027,3, 19,21); addRange(2027,3, 26,29);
+    addRange(2027,4, 2,4);
+    return new Set(dates);
+}
+const BLACKOUT = buildBlackoutSet();
+
+// ===== STATE =====
+let selectedOrigin = null;
+let filterScope = 'direct'; // 'direct' or 'all'
+let filterRegion = 'all';   // 'all', 'domestic', 'intl'
+let tripType = 'rt';
+let calOffset = 0; // which page of 4 months
+const CAL_PAGE_SIZE = 4;
+const CAL_TOTAL_MONTHS = 14;
+
+function setTripType(type) {
+    tripType = type;
+    document.getElementById('togRT').classList.toggle('on', type === 'rt');
+    document.getElementById('togOW').classList.toggle('on', type === 'ow');
+    document.getElementById('returnGroup').style.display = type === 'rt' ? '' : 'none';
+}
+
+// ===== DATE HELPERS =====
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function fmt(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function isBlackout(dateStr) { return BLACKOUT.has(dateStr); }
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+function datesBetween(from, to) {
+    const dates = []; let d = new Date(from); const end = new Date(to);
+    while (d <= end) { dates.push(fmt(d)); d = addDays(d, 1); }
+    return dates;
+}
+
+// ===== BUILD FRONTIER SEARCH URL =====
+function formatDateForFrontier(dateStr) {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-');
+    return encodeURIComponent(`${MONTH_NAMES[parseInt(month,10)-1]} ${parseInt(day,10)}, ${year}`);
+}
+function buildBookingURL(origin, dest, date, returnDate) {
+    if (!date) return `https://www.flyfrontier.com/flights/`;
+    const fmtDate = formatDateForFrontier(date);
+    if (tripType === 'rt' && returnDate) {
+        const fmtReturn = formatDateForFrontier(returnDate);
+        return `https://booking.flyfrontier.com/Flight/InternalSelect?o1=${origin}&d1=${dest}&dd1=${fmtDate}&o2=${dest}&d2=${origin}&dd2=${fmtReturn}&ADT=1&r=true&mon=true&promo=&ftype=STD`;
+    }
+    return `https://booking.flyfrontier.com/Flight/InternalSelect?o1=${origin}&d1=${dest}&dd1=${fmtDate}&ADT=1&r=false&mon=true&promo=&ftype=STD`;
+}
+
+// ===== AIRPORT SEARCH/DROPDOWN =====
+const originInput = document.getElementById('origin');
+const dropdown = document.getElementById('dropdown');
+
+function renderDropdown(airports) {
+    dropdown.innerHTML = airports.map(a =>
+        `<div class="ao" onclick="selectAirport('${a.code}')">
+            <span><span class="c">${a.code}</span> &mdash; ${a.name}</span>
+            <span style="font-size:11px;color:var(--muted)">${a.region}</span>
+        </div>`
+    ).join('');
+    dropdown.classList.toggle('show', airports.length > 0);
+}
+originInput.addEventListener('input', () => {
+    const q = originInput.value.toLowerCase().trim();
+    if (!q) { dropdown.classList.remove('show'); return; }
+    renderDropdown(AIRPORTS.filter(a => a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q) || a.region.toLowerCase().includes(q)).slice(0, 15));
+});
+originInput.addEventListener('focus', () => {
+    if (originInput.value.trim()) originInput.dispatchEvent(new Event('input'));
+    else renderDropdown(AIRPORTS.slice(0, 15));
+});
+document.addEventListener('click', e => { if (!e.target.closest('.aw')) dropdown.classList.remove('show'); });
+
+function selectAirport(code) {
+    const a = AIRPORTS.find(x => x.code === code);
+    selectedOrigin = a;
+    originInput.value = `${a.code} — ${a.name}, ${a.region}`;
+    dropdown.classList.remove('show');
+    if (document.querySelector('.book-now')) renderBookNow();
+}
+
+// ===== DATE SETUP =====
+const dateFromEl = document.getElementById('dateFrom');
+const dateToEl = document.getElementById('dateTo');
+function initDates() { dateFromEl.min = fmt(new Date()); dateToEl.min = fmt(new Date()); }
+initDates();
+selectAirport('ATL');
+
+// ===== BLACKOUT CHECK =====
+function checkBlackouts() {
+    const from = dateFromEl.value, to = dateToEl.value;
+    if (!from || !to) return;
+    const boDates = datesBetween(from, to).filter(d => isBlackout(d));
+    const warnEl = document.getElementById('blackoutWarn');
+    if (boDates.length > 0) {
+        const formatted = boDates.map(d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})).join(', ');
+        warnEl.innerHTML = `FYI — ${formatted} ${boDates.length>1?'are':'is a'} blackout date${boDates.length>1?'s':''} in your range (other days are fine).`;
+        warnEl.style.display = 'block';
+    } else { warnEl.style.display = 'none'; }
+}
+dateFromEl.addEventListener('change', () => { checkBlackouts(); renderCalendars(); });
+dateToEl.addEventListener('change', () => { checkBlackouts(); renderCalendars(); });
+
+// ===== SHOW RESULTS =====
+function showResults() {
+    if (!selectedOrigin) { originInput.focus(); originInput.style.borderColor='var(--danger)'; setTimeout(()=>originInput.style.borderColor='',1500); return; }
+    checkBlackouts();
+    const destinations = AIRPORTS.filter(a => a.code !== selectedOrigin.code);
+    const hasRouteData = !!ROUTES[selectedOrigin.code];
+    const from = dateFromEl.value, to = dateToEl.value;
+    const departMonth = from ? parseInt(from.split('-')[1], 10) : null;
+    let activeDests = hasRouteData ? destinations.filter(a => {
+        if (!hasDirectRoute(selectedOrigin.code, a.code)) return true;
+        return !isRouteInactive(selectedOrigin.code, a.code, departMonth);
+    }) : destinations;
+    const directDests = hasRouteData ? activeDests.filter(a => hasDirectRoute(selectedOrigin.code, a.code)) : activeDests;
+    const domestic = directDests.filter(a => !a.intl);
+    const international = directDests.filter(a => a.intl);
+    const dates = datesBetween(from, to);
+    const validDates = dates.filter(d => !isBlackout(d));
+    const contentEl = document.getElementById('content');
+    const routeNote = hasRouteData
+        ? `Showing <b>${directDests.length} nonstop routes</b> from ${selectedOrigin.code}` + (departMonth ? ` active in ${MONTH_NAMES[departMonth-1]}` : '') + `. Inactive seasonal routes are hidden.`
+        : `Showing all Frontier airports. Route data isn't available for ${selectedOrigin.code}.`;
+
+    contentEl.innerHTML = `
+        <div class="stats">
+            <div class="stat"><div class="num">${directDests.length}</div><div class="lbl">${hasRouteData ? 'Direct Routes' : 'Destinations'}</div></div>
+            <div class="stat"><div class="num">${domestic.length}</div><div class="lbl">Domestic</div></div>
+            <div class="stat"><div class="num">${international.length}</div><div class="lbl">International</div></div>
+            <div class="stat"><div class="num">${validDates.length}</div><div class="lbl">Searchable Days</div></div>
+        </div>
+        <div style="margin-bottom:6px">
+            <div class="section-title">Destinations from ${selectedOrigin.code}</div>
+            <div class="section-sub">${routeNote} <span style="color:#92400e">Note: Frontier may show connections if no nonstop flies on your exact date.</span></div>
+        </div>
+        <div class="filter-bar" id="filterBar">
+            ${hasRouteData ? `<span class="filter-group"><div class="filter-chip on" data-scope="direct" onclick="setScope('direct')">Direct Nonstop (${directDests.length})</div><div class="filter-chip" data-scope="all" onclick="setScope('all')">All Airports</div></span>` : ''}
+            <span class="filter-sep"></span>
+            <span class="filter-group"><div class="filter-chip on" data-region="all" onclick="setRegion('all')">All</div><div class="filter-chip" data-region="domestic" onclick="setRegion('domestic')">Domestic (${domestic.length})</div><div class="filter-chip" data-region="intl" onclick="setRegion('intl')">Int'l (${international.length})</div></span>
+        </div>
+        <div id="destGrid"></div>
+    `;
+    filterScope = hasRouteData ? 'direct' : 'all';
+    filterRegion = 'all';
+    renderCards(destinations);
+}
+
+function setScope(s) {
+    filterScope = s;
+    document.querySelectorAll('[data-scope]').forEach(c => c.classList.toggle('on', c.dataset.scope === s));
+    renderCards(AIRPORTS.filter(a => a.code !== selectedOrigin.code));
+}
+function setRegion(r) {
+    filterRegion = r;
+    document.querySelectorAll('[data-region]').forEach(c => c.classList.toggle('on', c.dataset.region === r));
+    renderCards(AIRPORTS.filter(a => a.code !== selectedOrigin.code));
+}
+
+function renderCards(destinations) {
+    const hasRouteData = !!ROUTES[selectedOrigin.code];
+    let filtered = [...destinations];
+
+    // Apply region filter
+    if (filterRegion === 'domestic') filtered = filtered.filter(a => !a.intl);
+    else if (filterRegion === 'intl') filtered = filtered.filter(a => a.intl);
+
+    const date = dateFromEl.value, retDate = dateToEl.value;
+    const departMonth = date ? parseInt(date.split('-')[1], 10) : null;
+    const gridEl = document.getElementById('destGrid');
+    if (departMonth && hasRouteData) filtered = filtered.filter(a => !isRouteInactive(selectedOrigin.code, a.code, departMonth));
+
+    // Apply scope filter
+    let directRoutes, otherRoutes;
+    if (hasRouteData && filterScope === 'all') {
+        directRoutes = filtered.filter(a => hasDirectRoute(selectedOrigin.code, a.code));
+        otherRoutes = filtered.filter(a => !hasDirectRoute(selectedOrigin.code, a.code));
+    } else if (hasRouteData && filterScope === 'direct') {
+        directRoutes = filtered.filter(a => hasDirectRoute(selectedOrigin.code, a.code));
+        otherRoutes = [];
+    } else { directRoutes = filtered; otherRoutes = []; }
+    // Sort: daily/frequent routes first, 1x/wk routes last
+    directRoutes.sort((a, b) => {
+        const aInfo = getSeasonalInfo(selectedOrigin.code, a.code);
+        const bInfo = getSeasonalInfo(selectedOrigin.code, b.code);
+        const aLow = aInfo && aInfo.freq === '1x/wk' ? 1 : 0;
+        const bLow = bInfo && bInfo.freq === '1x/wk' ? 1 : 0;
+        if (aLow !== bLow) return aLow - bLow;
+        return a.code.localeCompare(b.code);
+    });
+
+    function cardHTML(a, isDirect) {
+        const sInfo = getSeasonalInfo(selectedOrigin.code, a.code);
+        const noRoute = hasRouteData && !isDirect;
+        const isLowFreq = sInfo && (sInfo.freq === '1x/wk');
+        const cardClass = noRoute ? ' no-route' : (isLowFreq && isDirect ? ' low-freq' : '');
+        return `
+        <a class="card${cardClass}" href="${noRoute?'#':buildBookingURL(selectedOrigin.code,a.code,date,retDate)}" ${noRoute?'':'target="_blank" rel="noopener"'} data-code="${a.code}" ${noRoute?'onclick="event.preventDefault()"':''}>
+            ${a.intl?'<div class="intl-badge">Int\'l</div>':''}
+            ${sInfo&&isDirect?`<div class="seasonal-badge">${sInfo.label}</div>`:''}
+            <div class="code">${a.code}</div>
+            <div class="name">${a.name}</div>
+            <div class="region">${a.region}</div>
+            ${isLowFreq&&isDirect?`<div class="low-freq-warn">&#9888; Flies only 1 day/week — your date may not have flights. Check nearby days on Frontier.</div>`:''}
+            ${sInfo&&!isLowFreq&&isDirect?`<div class="freq-note">${sInfo.freq} — not every day</div>`:''}
+            ${!sInfo&&isDirect&&a.intl?'<div class="freq-note">Int\'l — schedule may vary</div>':''}
+            ${noRoute?'<div class="no-route-note">No direct route from '+selectedOrigin.code+'</div>':''}
+            ${isDirect&&!sInfo&&!a.intl?'<div class="hint">Click to search on Frontier &#8599;</div>':''}
+            ${isDirect&&!sInfo&&a.intl?'<div class="hint">Check Frontier for available days &#8599;</div>':''}
+            ${isDirect&&sInfo&&!isLowFreq?'<div class="hint">Try nearby dates if empty &#8599;</div>':''}
+        </a>`;
+    }
+
+    let html = '';
+    if (directRoutes.length > 0) {
+        if (otherRoutes.length > 0) html += `<div class="route-section-label">&#9992; Direct Nonstop Routes <span class="count">(${directRoutes.length})</span></div>`;
+        html += '<div class="grid">' + directRoutes.map(a => cardHTML(a, true)).join('') + '</div>';
+    }
+    if (otherRoutes.length > 0) {
+        html += '<hr class="no-route-divider">';
+        html += `<div class="route-section-label" style="color:var(--muted)">Other Frontier Airports <span class="count">(${otherRoutes.length})</span></div>`;
+        html += '<div class="grid">' + otherRoutes.map(a => cardHTML(a, false)).join('') + '</div>';
+    }
+    if (!directRoutes.length && !otherRoutes.length) html = '<div class="empty-state"><div class="icon">&#128269;</div><h3>No matches</h3><p>Try a different filter.</p></div>';
+    gridEl.innerHTML = html;
+}
+
+// ===== CALENDAR CAROUSEL =====
+function shiftCal(dir) {
+    calOffset = Math.max(0, Math.min(calOffset + dir, CAL_TOTAL_MONTHS - CAL_PAGE_SIZE));
+    renderCalendars();
+}
+
+function renderCalendars() {
+    const container = document.getElementById('cals');
+    const now = new Date();
+    const todayYear = now.getFullYear(), todayMonth = now.getMonth(), todayDate = now.getDate();
+    const todayStr = fmt(now);
+    let html = '';
+
+    for (let m = calOffset; m < calOffset + CAL_PAGE_SIZE && m < CAL_TOTAL_MONTHS; m++) {
+        const month = (todayMonth + m) % 12;
+        const year = todayYear + Math.floor((todayMonth + m) / 12);
+        const monthLabel = MONTH_NAMES[month] + ' ' + year;
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        let calHtml = `<div class="cal"><h3>${monthLabel}</h3><div class="cal-grid">`;
+        ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d => calHtml += `<div class="cal-hd">${d}</div>`);
+        for (let i = 0; i < firstDay; i++) calHtml += '<div class="cal-d empty"></div>';
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const mm = String(month+1).padStart(2,'0'), dd = String(d).padStart(2,'0');
+            const dateStr = `${year}-${mm}-${dd}`;
+            const isPast = (year<todayYear)||(year===todayYear&&month<todayMonth)||(year===todayYear&&month===todayMonth&&d<todayDate);
+            let cls = 'cal-d';
+            if (isPast) cls += ' past';
+            else if (isBlackout(dateStr)) cls += ' bo';
+            if (dateStr === todayStr) cls += ' today';
+            const from = dateFromEl.value, to = dateToEl.value;
+            if (from && to && dateStr >= from && dateStr <= to && !isPast) cls += ' in-range';
+            if (dateStr === from || dateStr === to) cls += ' sel';
+            calHtml += `<div class="${cls}" data-date="${dateStr}" onclick="calClick('${dateStr}')">${d}</div>`;
+        }
+        calHtml += '</div></div>';
+        html += calHtml;
+    }
+    container.innerHTML = html;
+
+    // Update nav buttons
+    document.getElementById('calPrev').disabled = calOffset === 0;
+    document.getElementById('calNext').disabled = calOffset >= CAL_TOTAL_MONTHS - CAL_PAGE_SIZE;
+    const startMonth = (todayMonth + calOffset) % 12;
+    const endIdx = Math.min(calOffset + CAL_PAGE_SIZE - 1, CAL_TOTAL_MONTHS - 1);
+    const endMonth = (todayMonth + endIdx) % 12;
+    document.getElementById('calPage').textContent = `${calOffset/CAL_PAGE_SIZE + 1}/${Math.ceil(CAL_TOTAL_MONTHS/CAL_PAGE_SIZE)}`;
+}
+
+function calClick(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (d < today || isBlackout(dateStr)) return;
+    if (!dateFromEl.value || (dateFromEl.value && dateToEl.value) || dateStr < dateFromEl.value) {
+        dateFromEl.value = dateStr; dateToEl.value = '';
+    } else { dateToEl.value = dateStr; }
+    checkBlackouts();
+    renderCalendars();
+}
+
+renderCalendars();
+
+// ===== BOOK NOW BANNER =====
+function getNextNonBlackout(start, maxSearch) {
+    let d = new Date(start);
+    for (let i = 0; i < maxSearch; i++) {
+        const ds = fmt(d);
+        if (!isBlackout(ds)) return ds;
+        d = addDays(d, 1);
+    }
+    return fmt(start);
+}
+function getUpcomingDates(start, count, maxSearch) {
+    const dates = []; let d = new Date(start);
+    for (let i = 0; i < maxSearch && dates.length < count; i++) {
+        const ds = fmt(d);
+        if (!isBlackout(ds)) dates.push(ds);
+        d = addDays(d, 1);
+    }
+    return dates;
+}
+function fmtShort(dateStr) {
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+}
+
+function renderBookNow() {
+    if (!selectedOrigin) return;
+    const el = document.getElementById('content');
+    const code = selectedOrigin.code;
+    const hasData = !!ROUTES[code];
+    if (!hasData) {
+        el.innerHTML = `<div class="empty-state"><div class="icon">&#127758;</div><h3>Pick your dates and hit Find Flights</h3><p>Route data for ${code} isn't available — you can still search all Frontier airports.</p></div>`;
+        return;
+    }
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    // GoWild booking windows:
+    // Domestic: opens 1 day before departure → bookable: today & tomorrow
+    // Int'l: opens 10 days before departure → bookable: today through today+10
+    const domDates = [];
+    for (let i = 0; i <= 1; i++) {
+        const ds = fmt(addDays(today, i));
+        if (!isBlackout(ds)) domDates.push(ds);
+    }
+    // Fallback: if today & tomorrow are both blackouts, find next available
+    if (domDates.length === 0) {
+        const fb = getNextNonBlackout(addDays(today, 2), 14);
+        if (fb) domDates.push(fb);
+    }
+
+    const intlDates = [];
+    for (let i = 0; i <= 10; i++) {
+        const ds = fmt(addDays(today, i));
+        if (!isBlackout(ds)) intlDates.push(ds);
+    }
+
+    // Check which months the date pools span (for seasonal filtering)
+    const intlMonths = [...new Set(intlDates.map(d => parseInt(d.split('-')[1], 10)))];
+    const domMonths = [...new Set(domDates.map(d => parseInt(d.split('-')[1], 10)))];
+
+    const routes = ROUTES[code].routes;
+    const intlRoutes = routes.map(c => AIRPORTS.find(a => a.code === c)).filter(a => a && a.intl)
+        .filter(a => intlMonths.some(m => !isRouteInactive(code, a.code, m)))
+        .sort((a, b) => {
+            const aI = getSeasonalInfo(code, a.code), bI = getSeasonalInfo(code, b.code);
+            const aL = aI && aI.freq === '1x/wk' ? 1 : 0, bL = bI && bI.freq === '1x/wk' ? 1 : 0;
+            return aL - bL || a.code.localeCompare(b.code);
+        });
+    const domRoutes = routes.map(c => AIRPORTS.find(a => a.code === c)).filter(a => a && !a.intl)
+        .filter(a => domMonths.some(m => !isRouteInactive(code, a.code, m)))
+        .sort(() => Math.random() - 0.5);
+
+    function pickDate(dates) { return dates[Math.floor(Math.random() * dates.length)]; }
+
+    function sugCard(a, dates) {
+        const dateStr = pickDate(dates);
+        const sI = getSeasonalInfo(code, a.code);
+        const isLow = sI && sI.freq === '1x/wk';
+        const url = buildBookingURL(code, a.code, dateStr, null);
+        return `<a class="sug-card${isLow?' sc-low':''}" href="${url}" target="_blank" rel="noopener">
+            ${a.intl?'<div class="sc-intl">Int\'l</div>':''}
+            <div class="sc-code">${a.code}</div>
+            <div class="sc-name">${a.name}</div>
+            <div class="sc-region">${a.region}</div>
+            <div class="sc-date">${fmtShort(dateStr)}</div>
+            ${isLow ? '<div class="sc-freq">1x/wk — try nearby dates</div>' : ''}
+            ${sI && !isLow ? `<div class="sc-freq">${sI.freq}</div>` : ''}
+        </a>`;
+    }
+
+    const domIsFallback = domDates.length === 1 && domDates[0] > fmt(addDays(today, 1));
+    let h = `<div class="book-now">
+        <h2>&#128293; Book Now from ${code}</h2>
+        <div class="bn-sub">Only showing dates you can actually book with GoWild right now. Tap a card to check on Frontier.</div>`;
+
+    if (intlDates.length > 0 && intlRoutes.length > 0) {
+        const rangeLabel = intlDates.length > 1
+            ? `${fmtShort(intlDates[0])} – ${fmtShort(intlDates[intlDates.length-1])}`
+            : fmtShort(intlDates[0]);
+        h += `<div class="bn-label">&#9992; International <span class="bn-count">(${intlRoutes.length} routes &bull; ${intlDates.length} bookable days)</span><span class="bn-date">${rangeLabel}</span></div>`;
+        h += `<div class="bn-scroll">${intlRoutes.map(a => sugCard(a, intlDates)).join('')}</div>`;
+    } else {
+        h += `<div class="bn-label" style="color:var(--muted)">&#9992; International — no bookable days right now (blackouts)</div>`;
+    }
+
+    if (domDates.length > 0 && domRoutes.length > 0) {
+        const domLabel = domIsFallback
+            ? `Next: ${fmtShort(domDates[0])}`
+            : domDates.length > 1 ? `${fmtShort(domDates[0])} – ${fmtShort(domDates[domDates.length-1])}` : fmtShort(domDates[0]);
+        h += `<div class="bn-label">&#9992; Domestic <span class="bn-count">(${domRoutes.length} routes${domIsFallback ? ' &bull; tomorrow is a blackout' : ''})</span><span class="bn-date">${domLabel}</span></div>`;
+        h += `<div class="bn-scroll">${domRoutes.map(a => sugCard(a, domDates)).join('')}</div>`;
+    } else {
+        h += `<div class="bn-label" style="color:var(--muted)">&#9992; Domestic — no bookable days right now (blackouts)</div>`;
+    }
+
+    h += `<div class="bn-footer"><span onclick="renderBookNow()" style="cursor:pointer;color:var(--green);font-weight:600">&#8635; Shuffle</span> &nbsp;&bull;&nbsp; Or pick specific dates above and hit <b>Find Flights</b></div>`;
+    h += '</div>';
+    el.innerHTML = h;
+}
+
+renderBookNow();
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.activeElement.closest('.search-bar')) showResults();
+    if (e.key === 'Escape') dropdown.classList.remove('show');
+});
+</script>
+</body>
+</html>

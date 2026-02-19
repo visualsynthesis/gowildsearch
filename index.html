@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GoWild Flight Finder</title>
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FCGS7G438W"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-FCGS7G438W');
+        // Custom event helper
+        function trackEvent(name, params) { if (typeof gtag === 'function') gtag('event', name, params); }
+    </script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='99'>✈</text></svg>">
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
@@ -578,6 +588,7 @@ function setTripType(type) {
 
 function setDateMode(mode) {
     dateMode = mode;
+    trackEvent('set_date_mode', { mode: mode });
     document.getElementById('togExact').classList.toggle('on', mode === 'exact');
     document.getElementById('togFlex').classList.toggle('on', mode === 'flex');
     document.getElementById('dateFromGroup').style.display = mode === 'flex' ? 'none' : '';
@@ -663,6 +674,7 @@ function selectAirport(code) {
     selectedOrigin = a;
     originInput.value = `${a.code} — ${a.name}, ${a.region}`;
     dropdown.classList.remove('show');
+    trackEvent('select_origin', { airport: code, region: a.region });
     if (document.querySelector('.book-now')) renderBookNow();
 }
 
@@ -691,6 +703,7 @@ dateToEl.addEventListener('change', () => { checkBlackouts(); renderCalendars();
 // ===== SHOW RESULTS =====
 function showResults() {
     if (!selectedOrigin) { originInput.focus(); originInput.style.borderColor='var(--danger)'; setTimeout(()=>originInput.style.borderColor='',1500); return; }
+    trackEvent('find_flights', { origin: selectedOrigin.code, date_mode: dateMode, trip_type: tripType });
     checkBlackouts();
     const destinations = AIRPORTS.filter(a => a.code !== selectedOrigin.code);
     const hasRouteData = !!ROUTES[selectedOrigin.code];
@@ -736,11 +749,13 @@ function showResults() {
 
 function setScope(s) {
     filterScope = s;
+    trackEvent('filter_scope', { scope: s });
     document.querySelectorAll('[data-scope]').forEach(c => c.classList.toggle('on', c.dataset.scope === s));
     renderCards(AIRPORTS.filter(a => a.code !== selectedOrigin.code));
 }
 function setRegion(r) {
     filterRegion = r;
+    trackEvent('filter_region', { region: r });
     document.querySelectorAll('[data-region]').forEach(c => c.classList.toggle('on', c.dataset.region === r));
     renderCards(AIRPORTS.filter(a => a.code !== selectedOrigin.code));
 }
@@ -785,7 +800,8 @@ function renderCards(destinations) {
         const cardClass = noRoute ? ' no-route' : (isLowFreq && isDirect ? ' low-freq' : '');
         const useFlex = dateMode === 'flex' && isDirect;
         const href = noRoute ? '#' : (useFlex ? '#' : buildBookingURL(selectedOrigin.code,a.code,date,retDate));
-        const click = noRoute ? 'onclick="event.preventDefault()"' : (useFlex ? `onclick="event.preventDefault();openFlexModal('${a.code}')"` : '');
+        const click = noRoute ? 'onclick="event.preventDefault()"' : (useFlex ? `onclick="event.preventDefault();openFlexModal('${a.code}')"` : `onclick="trackEvent('click_destination',{destination:'${a.code}',origin:'${selectedOrigin.code}',mode:'exact',international:${!!a.intl}})"`);
+
         const target = (!noRoute && !useFlex) ? 'target="_blank" rel="noopener"' : '';
         return `
         <a class="card${cardClass}" href="${href}" ${target} data-code="${a.code}" ${click}>
@@ -885,6 +901,7 @@ renderCalendars();
 function openFlexModal(destCode) {
     const a = AIRPORTS.find(x => x.code === destCode);
     if (!a) return;
+    trackEvent('open_flex_modal', { destination: destCode, origin: selectedOrigin ? selectedOrigin.code : 'ATL', international: !!a.intl });
     const origin = selectedOrigin ? selectedOrigin.code : 'ATL';
     const sInfo = getSeasonalInfo(origin, destCode);
     const isLow = sInfo && (sInfo.freq === '1x/wk');
@@ -958,7 +975,7 @@ function openFlexModal(destCode) {
             if (c.blackout) {
                 html += `<div class="date-btn db-bo"><span class="db-day">${dayOfWeek}</span><span class="db-date">${dateLabel}</span><span class="db-arrow">Blackout</span></div>`;
             } else {
-                html += `<a class="date-btn" href="${buildURL(c.date)}" target="_blank" rel="noopener"><span class="db-day">${dayOfWeek}</span><span class="db-date">${dateLabel}</span><span class="db-arrow">${hasKnownSchedule ? 'Check availability' : 'Try this date'} &#8599;</span></a>`;
+                html += `<a class="date-btn" href="${buildURL(c.date)}" target="_blank" rel="noopener" onclick="trackEvent('click_flex_date',{destination:'${destCode}',date:'${c.date}',day:'${dayOfWeek}'})"><span class="db-day">${dayOfWeek}</span><span class="db-date">${dateLabel}</span><span class="db-arrow">${hasKnownSchedule ? 'Check availability' : 'Try this date'} &#8599;</span></a>`;
             }
         });
         html += `</div>`;
@@ -1058,7 +1075,7 @@ function renderBookNow() {
     function sugCard(a) {
         const sI = getSeasonalInfo(code, a.code);
         const isLow = sI && sI.freq === '1x/wk';
-        return `<a class="sug-card${isLow?' sc-low':''}" href="#" onclick="event.preventDefault();openFlexModal('${a.code}')">
+        return `<a class="sug-card${isLow?' sc-low':''}" href="#" onclick="event.preventDefault();trackEvent('click_book_now',{destination:'${a.code}'});openFlexModal('${a.code}')">
             ${a.intl?'<div class="sc-intl">Int\'l</div>':''}
             <div class="sc-code">${a.code}</div>
             <div class="sc-name">${a.name}</div>
@@ -1215,10 +1232,12 @@ function submitHelp() {
     if (results.length === 0) {
         answerEl.innerHTML = '<div class="ha-none">Hmm, I don\'t have an answer for that. Try "bags", "cancel", "booking", or "blackout dates".</div>';
         answerEl.classList.add('show');
+        trackEvent('help_search', { query: query, result: 'no_match' });
         return;
     }
 
     const best = results[0];
+    trackEvent('help_search', { query: query, result: best.q, category: best.cat || 'unknown' });
     const related = results.slice(1, 4);
 
     let html = `<div class="ha-box">`;

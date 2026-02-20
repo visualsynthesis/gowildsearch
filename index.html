@@ -86,7 +86,10 @@
 
         /* ===== STATS ===== */
         .stats{display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap}
-        .stat{background:#fff;border-radius:var(--radius);padding:12px 18px;border:1px solid var(--border);min-width:110px}
+        .stat{background:#fff;border-radius:var(--radius);padding:12px 18px;border:1px solid var(--border);min-width:110px;transition:all .15s}
+        .stat[data-filter]{cursor:pointer;user-select:none}
+        .stat[data-filter]:hover{border-color:var(--green);background:var(--green-light)}
+        .stat.active{border-color:var(--green);background:var(--green-light);box-shadow:0 0 0 2px rgba(22,163,74,0.15)}
         .stat .num{font-size:24px;font-weight:800;color:var(--green)}
         .stat .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:1px;font-weight:500}
 
@@ -644,8 +647,7 @@ const BLACKOUT = buildBlackoutSet();
 
 // ===== STATE =====
 let selectedOrigin = null;
-let filterScope = 'direct'; // 'direct' or 'all'
-let filterRegion = 'all';   // 'all', 'domestic', 'intl'
+let activeFilter = 'all-direct'; // 'all-direct', 'domestic', 'intl', 'all-connecting'
 let tripType = 'rt';
 let dateMode = 'exact'; // 'exact' or 'flex'
 let calOffset = 0; // which page of 4 months
@@ -799,37 +801,26 @@ function showResults() {
 
     contentEl.innerHTML = `
         <div class="stats">
-            <div class="stat"><div class="num">${directDests.length}</div><div class="lbl">${hasRouteData ? 'Direct Routes' : 'Destinations'}</div></div>
-            <div class="stat"><div class="num">${domestic.length}</div><div class="lbl">Domestic</div></div>
-            <div class="stat"><div class="num">${international.length}</div><div class="lbl">International</div></div>
-            ${dateMode==='exact'?`<div class="stat"><div class="num">${validDates.length}</div><div class="lbl">Searchable Days</div></div>`:`<div class="stat"><div class="num" style="color:var(--indigo)">&#8734;</div><div class="lbl">Flexible Dates</div></div>`}
+            <div class="stat active" data-filter="all-direct" onclick="setFilter('all-direct')"><div class="num">${directDests.length}</div><div class="lbl">${hasRouteData ? 'Direct Routes' : 'Destinations'}</div></div>
+            <div class="stat" data-filter="domestic" onclick="setFilter('domestic')"><div class="num">${domestic.length}</div><div class="lbl">Domestic</div></div>
+            <div class="stat" data-filter="intl" onclick="setFilter('intl')"><div class="num">${international.length}</div><div class="lbl">International</div></div>
+            ${hasRouteData ? `<div class="stat" data-filter="all-connecting" onclick="setFilter('all-connecting')"><div class="num" style="color:var(--indigo)">&#43;</div><div class="lbl">All + Connecting</div></div>` : ''}
+            ${dateMode==='exact'?`<div class="stat" style="cursor:default"><div class="num">${validDates.length}</div><div class="lbl">Searchable Days</div></div>`:`<div class="stat" style="cursor:default"><div class="num" style="color:var(--indigo)">&#8734;</div><div class="lbl">Flexible Dates</div></div>`}
         </div>
         <div style="margin-bottom:6px">
             <div class="section-title">Destinations from ${selectedOrigin.code}</div>
             <div class="section-sub">${routeNote}${dateMode==='exact'?' <span style="color:#92400e">Note: Frontier may show connections if no nonstop flies on your exact date.</span>':' <span style="color:var(--green);font-weight:500">Flexible mode — cards open Frontier\'s fare calendar so you can pick available dates.</span>'}</div>
         </div>
-        <div class="filter-bar" id="filterBar">
-            ${hasRouteData ? `<span class="filter-group"><div class="filter-chip on" data-scope="direct" onclick="setScope('direct')">Direct Nonstop (${directDests.length})</div><div class="filter-chip" data-scope="all" onclick="setScope('all')">All Airports</div></span>` : ''}
-            <span class="filter-sep"></span>
-            <span class="filter-group"><div class="filter-chip on" data-region="all" onclick="setRegion('all')">All</div><div class="filter-chip" data-region="domestic" onclick="setRegion('domestic')">Domestic (${domestic.length})</div><div class="filter-chip" data-region="intl" onclick="setRegion('intl')">Int'l (${international.length})</div></span>
-        </div>
         <div id="destGrid"></div>
     `;
-    filterScope = hasRouteData ? 'direct' : 'all';
-    filterRegion = 'all';
+    activeFilter = 'all-direct';
     renderCards(destinations);
 }
 
-function setScope(s) {
-    filterScope = s;
-    trackEvent('filter_scope', { scope: s });
-    document.querySelectorAll('[data-scope]').forEach(c => c.classList.toggle('on', c.dataset.scope === s));
-    renderCards(AIRPORTS.filter(a => a.code !== selectedOrigin.code));
-}
-function setRegion(r) {
-    filterRegion = r;
-    trackEvent('filter_region', { region: r });
-    document.querySelectorAll('[data-region]').forEach(c => c.classList.toggle('on', c.dataset.region === r));
+function setFilter(f) {
+    activeFilter = f;
+    trackEvent('filter_scope', { filter: f });
+    document.querySelectorAll('.stat[data-filter]').forEach(c => c.classList.toggle('active', c.dataset.filter === f));
     renderCards(AIRPORTS.filter(a => a.code !== selectedOrigin.code));
 }
 
@@ -837,9 +828,9 @@ function renderCards(destinations) {
     const hasRouteData = !!ROUTES[selectedOrigin.code];
     let filtered = [...destinations];
 
-    // Apply region filter
-    if (filterRegion === 'domestic') filtered = filtered.filter(a => !a.intl);
-    else if (filterRegion === 'intl') filtered = filtered.filter(a => a.intl);
+    // Apply filter based on active stat box
+    if (activeFilter === 'domestic') filtered = filtered.filter(a => !a.intl);
+    else if (activeFilter === 'intl') filtered = filtered.filter(a => a.intl);
 
     const date = dateMode === 'flex' ? '' : dateFromEl.value;
     const retDate = dateMode === 'flex' ? '' : dateToEl.value;
@@ -849,10 +840,10 @@ function renderCards(destinations) {
 
     // Apply scope filter
     let directRoutes, otherRoutes;
-    if (hasRouteData && filterScope === 'all') {
+    if (hasRouteData && activeFilter === 'all-connecting') {
         directRoutes = filtered.filter(a => hasDirectRoute(selectedOrigin.code, a.code));
         otherRoutes = filtered.filter(a => !hasDirectRoute(selectedOrigin.code, a.code));
-    } else if (hasRouteData && filterScope === 'direct') {
+    } else if (hasRouteData) {
         directRoutes = filtered.filter(a => hasDirectRoute(selectedOrigin.code, a.code));
         otherRoutes = [];
     } else { directRoutes = filtered; otherRoutes = []; }

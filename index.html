@@ -43,6 +43,8 @@
         .fg input,.fg select{padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:13px;outline:none;transition:all .15s}
         .fg input:focus{border-color:var(--green);box-shadow:0 0 0 2px rgba(26,135,58,0.15)}
 
+        #destination.has-dest{padding-right:30px}
+
         /* Airport dropdown */
         .aw{position:relative}
         .ai{width:260px}
@@ -197,7 +199,7 @@
         .modal .m-tip{font-size:11px;color:var(--muted);text-align:center;padding-top:10px;border-top:1px solid var(--border);line-height:1.5}
 
         /* ===== HELP SEARCH ===== */
-        .help-bar{margin-bottom:18px}
+        .help-bar{margin-bottom:18px;padding-bottom:24px;border-bottom:1px solid var(--border)}
         .help-input-wrap{position:relative;display:flex;align-items:center;gap:0}
         .help-input{width:100%;padding:11px 48px 11px 40px;border-radius:24px;border:1px solid var(--border);background:#fff;font-size:14px;color:var(--text);outline:none;transition:all .15s}
         .help-input::placeholder{color:#9aa0a6}
@@ -208,8 +210,14 @@
         .help-send:hover{opacity:1}
         .help-send.active{opacity:1}
         .help-send svg{width:16px;height:16px}
-        .help-suggestions{display:flex;gap:5px;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;padding:6px 0 0;justify-content:center}
-        .help-suggestions::-webkit-scrollbar{height:0}
+        .help-sug-wrap{position:relative;padding:20px 34px 0;margin-bottom:20px}
+        .help-suggestions{display:flex;gap:5px;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;padding:2px 4px;scroll-behavior:smooth;-ms-overflow-style:none;scrollbar-width:none}
+        .help-suggestions::-webkit-scrollbar{height:0;display:none}
+        .help-scroll{position:absolute;top:50%;transform:translateY(-50%);z-index:2;background:rgba(255,255,255,0.95);border:1px solid var(--border);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:var(--muted);box-shadow:var(--shadow);transition:all .15s;user-select:none}
+        .help-scroll:hover{color:var(--green);border-color:var(--green)}
+        .help-scroll.left{left:2px}
+        .help-scroll.right{right:2px}
+        .help-scroll.hidden{display:none}
         .help-sug{padding:4px 12px;border-radius:14px;font-size:11px;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--muted);transition:all .15s;flex-shrink:0}
         .help-sug:hover{border-color:var(--green);color:var(--green);background:var(--green-light)}
         .help-answer{margin:12px 0 0;display:none;animation:hrSlide .25s ease}
@@ -337,10 +345,18 @@
 
 <div class="search-bar">
     <div class="fg">
-        <label>Your Airport</label>
+        <label>From</label>
         <div class="aw">
             <input type="text" class="ai" id="origin" placeholder="Type airport code or city..." autocomplete="off">
             <div class="ad" id="dropdown"></div>
+        </div>
+    </div>
+    <div class="fg">
+        <label>To <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:9px;color:#aaa">(optional)</span></label>
+        <div class="aw">
+            <input type="text" class="ai" id="destination" placeholder="All destinations" autocomplete="off">
+            <div class="ad" id="destDropdown"></div>
+            <button type="button" id="destClear" onclick="clearDestination()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:16px;cursor:pointer;color:var(--muted);display:none;padding:2px 6px;line-height:1" title="Clear destination">&times;</button>
         </div>
     </div>
     <div class="fg">
@@ -402,11 +418,15 @@
             <input type="text" class="help-input" id="helpInput" placeholder="Ask about GoWild — bags, booking, blackout dates, tips..." autocomplete="off">
             <button class="help-send" id="helpSend" onclick="submitHelp()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
         </div>
-        <div class="help-suggestions" id="helpSugs"></div>
+        <div class="help-sug-wrap">
+            <button class="help-scroll left hidden" id="sugScrollL" onclick="scrollSugs(-1)">&#8249;</button>
+            <div class="help-suggestions" id="helpSugs"></div>
+            <button class="help-scroll right hidden" id="sugScrollR" onclick="scrollSugs(1)">&#8250;</button>
+        </div>
         <div class="help-answer" id="helpAnswer"></div>
     </div>
 
-    <div id="content">
+    <div id="content" style="margin-top:40px">
         <div class="empty-state">
             <div class="icon">&#127758;</div>
             <h3>Pick your dates above, then hit Find Flights</h3>
@@ -617,6 +637,91 @@ function isRouteInactive(originCode, destCode, month) {
     return !info.months.includes(month);
 }
 
+// ===== NEARBY AIRPORTS (for "try a cheaper alternative" suggestions) =====
+// Format: { code: [{ c:'CODE', t:'drive time' }, ...] }
+const NEARBY = {
+    // California
+    SFO:[{c:'OAK',t:'30 min'},{c:'SJC',t:'40 min'},{c:'SMF',t:'1.5 hr'},{c:'SNA',t:'6 hr'}],
+    OAK:[{c:'SFO',t:'30 min'},{c:'SJC',t:'40 min'},{c:'SMF',t:'1.5 hr'}],
+    SJC:[{c:'SFO',t:'40 min'},{c:'OAK',t:'40 min'},{c:'SMF',t:'2 hr'}],
+    LAX:[{c:'BUR',t:'30 min'},{c:'ONT',t:'50 min'},{c:'SNA',t:'50 min'},{c:'SAN',t:'2 hr'}],
+    BUR:[{c:'LAX',t:'30 min'},{c:'ONT',t:'45 min'},{c:'SNA',t:'1 hr'}],
+    ONT:[{c:'LAX',t:'50 min'},{c:'BUR',t:'45 min'},{c:'SNA',t:'40 min'}],
+    SNA:[{c:'LAX',t:'50 min'},{c:'BUR',t:'1 hr'},{c:'ONT',t:'40 min'},{c:'SAN',t:'1.5 hr'}],
+    SMF:[{c:'SFO',t:'1.5 hr'},{c:'OAK',t:'1.5 hr'},{c:'SJC',t:'2 hr'},{c:'RNO',t:'2 hr'}],
+    SAN:[{c:'LAX',t:'2 hr'},{c:'SNA',t:'1.5 hr'},{c:'ONT',t:'1.5 hr'}],
+    // Florida
+    FLL:[{c:'MIA',t:'35 min'},{c:'PBI',t:'50 min'}],
+    MIA:[{c:'FLL',t:'35 min'},{c:'PBI',t:'1.5 hr'}],
+    PBI:[{c:'FLL',t:'50 min'},{c:'MIA',t:'1.5 hr'}],
+    TPA:[{c:'SRQ',t:'1 hr'},{c:'MCO',t:'1.5 hr'},{c:'RSW',t:'2 hr'}],
+    MCO:[{c:'TPA',t:'1.5 hr'},{c:'SRQ',t:'2 hr'}],
+    SRQ:[{c:'TPA',t:'1 hr'},{c:'RSW',t:'1.5 hr'}],
+    RSW:[{c:'TPA',t:'2 hr'},{c:'SRQ',t:'1.5 hr'},{c:'FLL',t:'2.5 hr'}],
+    // Texas
+    DFW:[{c:'DAL',t:'20 min'},{c:'SAT',t:'4.5 hr'},{c:'AUS',t:'3 hr'}],
+    DAL:[{c:'DFW',t:'20 min'},{c:'SAT',t:'4.5 hr'},{c:'AUS',t:'3 hr'}],
+    SAT:[{c:'AUS',t:'1.5 hr'},{c:'DAL',t:'4.5 hr'},{c:'DFW',t:'4.5 hr'}],
+    AUS:[{c:'SAT',t:'1.5 hr'},{c:'DAL',t:'3 hr'},{c:'DFW',t:'3 hr'}],
+    IAH:[{c:'HOU',t:'40 min'},{c:'AUS',t:'2.5 hr'}],
+    HOU:[{c:'IAH',t:'40 min'},{c:'AUS',t:'2.5 hr'}],
+    // Chicago
+    ORD:[{c:'MDW',t:'40 min'},{c:'MKE',t:'1.5 hr'}],
+    MDW:[{c:'ORD',t:'40 min'},{c:'MKE',t:'1.5 hr'}],
+    MKE:[{c:'ORD',t:'1.5 hr'},{c:'MDW',t:'1.5 hr'}],
+    // NYC area
+    EWR:[{c:'LGA',t:'40 min'},{c:'ISP',t:'1.5 hr'},{c:'TTN',t:'1 hr'},{c:'PHL',t:'1.5 hr'}],
+    LGA:[{c:'EWR',t:'40 min'},{c:'ISP',t:'1 hr'},{c:'TTN',t:'1.5 hr'}],
+    ISP:[{c:'LGA',t:'1 hr'},{c:'EWR',t:'1.5 hr'},{c:'TTN',t:'2 hr'}],
+    TTN:[{c:'EWR',t:'1 hr'},{c:'LGA',t:'1.5 hr'},{c:'PHL',t:'1 hr'}],
+    // DC area
+    DCA:[{c:'BWI',t:'50 min'},{c:'IAD',t:'40 min'},{c:'RIC',t:'2 hr'}],
+    BWI:[{c:'DCA',t:'50 min'},{c:'IAD',t:'1 hr'},{c:'PHL',t:'1.5 hr'}],
+    IAD:[{c:'DCA',t:'40 min'},{c:'BWI',t:'1 hr'}],
+    // Ohio/Midwest
+    CLE:[{c:'PIT',t:'2 hr'},{c:'CMH',t:'2.5 hr'},{c:'BUF',t:'3 hr'},{c:'DTW',t:'2.5 hr'}],
+    CMH:[{c:'CLE',t:'2.5 hr'},{c:'CVG',t:'1.5 hr'},{c:'PIT',t:'3 hr'},{c:'IND',t:'3 hr'}],
+    CVG:[{c:'CMH',t:'1.5 hr'},{c:'IND',t:'2 hr'},{c:'SDF',t:'1.5 hr'}],
+    IND:[{c:'CMH',t:'3 hr'},{c:'CVG',t:'2 hr'},{c:'SDF',t:'2 hr'}],
+    PIT:[{c:'CLE',t:'2 hr'},{c:'CMH',t:'3 hr'},{c:'BUF',t:'3.5 hr'}],
+    // Southeast
+    ATL:[{c:'BHM',t:'2.5 hr'},{c:'CHS',t:'4.5 hr'},{c:'SAV',t:'4 hr'},{c:'CLT',t:'4 hr'}],
+    CLT:[{c:'RDU',t:'2.5 hr'},{c:'GSP',t:'1.5 hr'},{c:'ATL',t:'4 hr'}],
+    RDU:[{c:'CLT',t:'2.5 hr'},{c:'RIC',t:'2.5 hr'},{c:'GSP',t:'3.5 hr'}],
+    BNA:[{c:'SDF',t:'2.5 hr'},{c:'MEM',t:'3.5 hr'},{c:'ATL',t:'4 hr'}],
+    // Mountain/West
+    RNO:[{c:'SFO',t:'3.5 hr'},{c:'OAK',t:'3.5 hr'},{c:'SJC',t:'4 hr'},{c:'SMF',t:'2 hr'},{c:'SLC',t:'5.5 hr'}],
+    SLC:[{c:'BOI',t:'5 hr'},{c:'RNO',t:'5.5 hr'}],
+    DEN:[{c:'COS',t:'1 hr'},{c:'ABQ',t:'6.5 hr'}],
+    COS:[{c:'DEN',t:'1 hr'}],
+    BOI:[{c:'SLC',t:'5 hr'},{c:'PDX',t:'7 hr'}],
+    PHX:[{c:'TUS',t:'2 hr'},{c:'SAN',t:'5.5 hr'}],
+    TUS:[{c:'PHX',t:'2 hr'}],
+    // Pacific NW
+    SEA:[{c:'PDX',t:'3 hr'}],
+    PDX:[{c:'SEA',t:'3 hr'},{c:'BOI',t:'7 hr'}],
+    // Other pairs
+    BOS:[{c:'PVD',t:'1 hr'},{c:'BDL',t:'1.5 hr'}],
+    PVD:[{c:'BOS',t:'1 hr'},{c:'BDL',t:'1.5 hr'}],
+    BDL:[{c:'BOS',t:'1.5 hr'},{c:'PVD',t:'1.5 hr'}],
+    MEM:[{c:'BNA',t:'3.5 hr'},{c:'STL',t:'4.5 hr'},{c:'LIT',t:'2 hr'}],
+    STL:[{c:'MEM',t:'4.5 hr'},{c:'MCI',t:'4 hr'}],
+    MCI:[{c:'STL',t:'4 hr'},{c:'OMA',t:'3 hr'}],
+    MSP:[{c:'MKE',t:'5.5 hr'},{c:'DSM',t:'4 hr'}],
+    MSY:[{c:'MEM',t:'5.5 hr'},{c:'JAX',t:'8 hr'}],
+    SDF:[{c:'CVG',t:'1.5 hr'},{c:'IND',t:'2 hr'},{c:'BNA',t:'2.5 hr'}],
+};
+function getNearbyAlternatives(originCode, destCode) {
+    const nearby = NEARBY[destCode];
+    if (!nearby) return [];
+    const hasRouteData = !!ROUTES[originCode];
+    return nearby
+        .filter(n => n.c !== originCode && AIRPORTS.find(a => a.code === n.c))
+        .filter(n => !hasRouteData || hasDirectRoute(originCode, n.c))
+        .map(n => { const a = AIRPORTS.find(x => x.code === n.c); return a ? {...a, driveTime: n.t} : null; })
+        .filter(Boolean);
+}
+
 // ===== BLACKOUT DATES =====
 function buildBlackoutSet() {
     const dates = [];
@@ -647,6 +752,7 @@ const BLACKOUT = buildBlackoutSet();
 
 // ===== STATE =====
 let selectedOrigin = null;
+let selectedDestination = null;
 let activeFilter = 'all-direct'; // 'all-direct', 'domestic', 'intl', 'all-connecting'
 let tripType = 'rt';
 let dateMode = 'exact'; // 'exact' or 'flex'
@@ -742,7 +848,9 @@ originInput.addEventListener('focus', () => {
     if (originInput.value.trim()) originInput.dispatchEvent(new Event('input'));
     else renderDropdown(AIRPORTS.slice(0, 15));
 });
-document.addEventListener('click', e => { if (!e.target.closest('.aw')) dropdown.classList.remove('show'); });
+document.addEventListener('click', e => {
+    if (!e.target.closest('.aw')) { dropdown.classList.remove('show'); destDropdown.classList.remove('show'); }
+});
 
 function selectAirport(code) {
     const a = AIRPORTS.find(x => x.code === code);
@@ -751,6 +859,57 @@ function selectAirport(code) {
     dropdown.classList.remove('show');
     trackEvent('select_origin', { airport: code, region: a.region });
     if (document.querySelector('.book-now')) renderBookNow();
+    // Clear destination if it matches the new origin
+    if (selectedDestination && selectedDestination.code === code) clearDestination();
+}
+
+// ===== DESTINATION SEARCH/DROPDOWN =====
+const destInput = document.getElementById('destination');
+const destDropdown = document.getElementById('destDropdown');
+const destClear = document.getElementById('destClear');
+
+function renderDestDropdown(airports) {
+    destDropdown.innerHTML = airports.map(a =>
+        `<div class="ao" onclick="selectDestination('${a.code}')">
+            <span><span class="c">${a.code}</span> &mdash; ${a.name}</span>
+            <span style="font-size:11px;color:var(--muted)">${a.region}</span>
+        </div>`
+    ).join('');
+    destDropdown.classList.toggle('show', airports.length > 0);
+}
+destInput.addEventListener('input', () => {
+    const q = destInput.value.toLowerCase().trim();
+    if (!q) { destDropdown.classList.remove('show'); return; }
+    const filtered = AIRPORTS.filter(a => a.code !== (selectedOrigin ? selectedOrigin.code : '') && (a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q) || a.region.toLowerCase().includes(q)));
+    renderDestDropdown(filtered.slice(0, 15));
+});
+destInput.addEventListener('focus', () => {
+    if (destInput.value.trim() && !selectedDestination) destInput.dispatchEvent(new Event('input'));
+    else if (!selectedDestination) {
+        const filtered = AIRPORTS.filter(a => a.code !== (selectedOrigin ? selectedOrigin.code : ''));
+        renderDestDropdown(filtered.slice(0, 15));
+    }
+});
+
+function selectDestination(code) {
+    const a = AIRPORTS.find(x => x.code === code);
+    selectedDestination = a;
+    destInput.value = `${a.code} — ${a.name}, ${a.region}`;
+    destInput.classList.add('has-dest');
+    destDropdown.classList.remove('show');
+    destClear.style.display = 'block';
+    trackEvent('select_destination', { airport: code, region: a.region });
+    // Auto-trigger search if origin is already selected
+    if (selectedOrigin) showResults();
+}
+
+function clearDestination() {
+    selectedDestination = null;
+    destInput.value = '';
+    destInput.classList.remove('has-dest');
+    destClear.style.display = 'none';
+    // Re-show all results if origin is selected and results are visible
+    if (selectedOrigin && document.getElementById('destGrid')) showResults();
 }
 
 // ===== DATE SETUP =====
@@ -778,7 +937,7 @@ dateToEl.addEventListener('change', () => { checkBlackouts(); renderCalendars();
 // ===== SHOW RESULTS =====
 function showResults() {
     if (!selectedOrigin) { originInput.focus(); originInput.style.borderColor='var(--danger)'; setTimeout(()=>originInput.style.borderColor='',1500); return; }
-    trackEvent('find_flights', { origin: selectedOrigin.code, date_mode: dateMode, trip_type: tripType });
+    trackEvent('find_flights', { origin: selectedOrigin.code, destination: selectedDestination ? selectedDestination.code : 'all', date_mode: dateMode, trip_type: tripType });
     checkBlackouts();
     const destinations = AIRPORTS.filter(a => a.code !== selectedOrigin.code);
     const hasRouteData = !!ROUTES[selectedOrigin.code];
@@ -795,6 +954,40 @@ function showResults() {
     const dates = (from && to) ? datesBetween(from, to) : [];
     const validDates = dates.filter(d => !isBlackout(d));
     const contentEl = document.getElementById('content');
+
+    // === SINGLE DESTINATION MODE ===
+    if (selectedDestination) {
+        const dest = selectedDestination;
+        const isDirect = hasRouteData ? hasDirectRoute(selectedOrigin.code, dest.code) : true;
+        const isInactive = hasRouteData && isDirect && isRouteInactive(selectedOrigin.code, dest.code, departMonth);
+        let statusHTML = '';
+        if (isInactive) {
+            statusHTML = `<div style="background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;font-size:13px">&#9888; The nonstop route from <b>${selectedOrigin.code}</b> to <b>${dest.code}</b> appears to be <b>inactive this month</b>. It may operate seasonally — try a different month or check Frontier for connecting options.</div>`;
+        } else if (isDirect) {
+            statusHTML = `<div style="background:var(--green-light);border:1px solid var(--green-mid);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;font-size:13px">&#9992; <b>Direct nonstop</b> from ${selectedOrigin.code} to ${dest.code} (${dest.name}, ${dest.region})</div>`;
+        } else {
+            const nearbyAlts = getNearbyAlternatives(selectedOrigin.code, dest.code);
+            let nearbyHTML = '';
+            if (nearbyAlts.length > 0) {
+                const altLinks = nearbyAlts.map(a => `<span style="display:inline-block;background:#fff;border:1px solid var(--indigo);border-radius:14px;padding:4px 12px;margin:3px 4px;cursor:pointer;font-weight:600;color:var(--indigo);font-size:12px;transition:all .15s" onmouseover="this.style.background='var(--indigo-bg)'" onmouseout="this.style.background='#fff'" onclick="clearDestination();selectDestination('${a.code}')">${a.code} — ${a.name} <span style="font-weight:400;color:var(--muted);font-size:11px">&#128663; ${a.driveTime}</span></span>`).join('');
+                nearbyHTML = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(26,115,232,0.2)">&#128161; <b>Money-saving tip:</b> Try a nearby airport with a <b>direct nonstop</b> — could be much cheaper!<br><div style="margin-top:6px">${altLinks}</div></div>`;
+            }
+            statusHTML = `<div style="background:var(--indigo-bg);border:1px solid var(--indigo);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;font-size:13px">&#128268; <b>No nonstop</b> from ${selectedOrigin.code} to ${dest.code} — but you can fly with a <b>connecting flight</b>. Card below links to Frontier to show available connections.${nearbyHTML}</div>`;
+        }
+        contentEl.innerHTML = `
+            ${statusHTML}
+            <div style="margin-bottom:6px">
+                <div class="section-title">${selectedOrigin.code} &#8594; ${dest.code} ${dest.name}</div>
+                <div class="section-sub">${isDirect ? 'Nonstop route' : 'Connecting flight'} &bull; ${dest.region}${dateMode==='exact'?' <span style="color:#92400e">Note: Frontier may show connections if no nonstop flies on your exact date.</span>':' <span style="color:var(--green);font-weight:500">Flexible mode — opens Frontier\'s fare calendar.</span>'}</div>
+            </div>
+            <div id="destGrid"></div>
+        `;
+        activeFilter = isDirect ? 'all-direct' : 'all-connecting';
+        renderCards([dest]);
+        return;
+    }
+
+    // === ALL DESTINATIONS MODE ===
     const routeNote = hasRouteData
         ? `Showing <b>${directDests.length} nonstop routes</b> from ${selectedOrigin.code}` + (departMonth ? ` active in ${MONTH_NAMES[departMonth-1]}` : '') + `. Inactive seasonal routes are hidden.`
         : `Showing all Frontier airports. Route data isn't available for ${selectedOrigin.code}.`;
@@ -1401,9 +1594,11 @@ const HELP_KB = [
     { q:'Is Frontier eco-friendly?', a:'<b>Actually, yes — more than you\'d think.</b> Frontier won <b>"North American Environmental Sustainability Airline of the Year"</b> from CAPA in 2024. Here\'s why:<br><b>Fleet:</b> Largest A320neo family fleet in the US, averaging just 4 years old. The neo engines (Pratt & Whitney GTF) burn significantly less fuel than older models.<br><b>Seats:</b> Lightweight Recaro seats reduce aircraft weight by 30%, cutting fuel consumption<br><b>Operations:</b> 80% of flights return to home base nightly (out-and-back model), reducing deadhead positioning and emissions<br><b>Those tail animals?</b> Each one represents a partnership with nonprofits protecting that animal\'s habitat. Passengers can donate.<br><b>Carbon offsets:</b> Available at booking — you can opt in to offset your flight\'s carbon footprint<br>GoWild holders can feel slightly better about flying constantly!', tags:'eco friendly green sustainable environment carbon offset fuel efficient neo fleet animal tail', cat:'Fleet' },
 
     { q:'What happens with GoWild on holiday weekends?', a:'<b>Short answer: blackouts block you.</b> Every major US holiday has GoWild blackout dates:<br>• <b>Thanksgiving:</b> Blocked Wed-Sun around the holiday<br>• <b>Christmas/New Year:</b> Typically blocked Dec 20-Jan 2<br>• <b>July 4th:</b> Blocked around the holiday weekend<br>• <b>Labor Day / Memorial Day:</b> Blocked Fri-Mon<br>• <b>Spring Break:</b> Multiple weekends blocked in March-April<br><b>The workaround:</b> Travel on the <b>edges</b> of blackout periods. Fly out the Monday before Thanksgiving instead of Wednesday. Return the Tuesday after instead of Sunday. You\'ll often find great availability just outside the blackout window.<br><b>Reality check:</b> If you need guaranteed holiday travel, GoWild is not your answer. Keep a separate booking method for holidays.', tags:'holiday weekend blackout thanksgiving christmas new year july 4th labor memorial spring', cat:'Blackouts' },
+
+    { q:'Can I save money by flying to a nearby airport instead?', a:'<b>Absolutely — this is one of the best GoWild hacks.</b> GoWild prices vary wildly between destinations, so checking nearby airports can save you serious money.<br><b>Real example:</b> ATL → Reno might be $145, but ATL → San Francisco could be $16. SFO to Reno is just a 3.5-hour drive or a cheap one-way flight on Southwest/Alaska.<br><b>Great combos to check:</b><br>• <b>SFO/OAK/SJC</b> — all serve the San Francisco Bay Area, plus gateway to Tahoe, Reno, Yosemite<br>• <b>FLL/MIA</b> — Fort Lauderdale and Miami are 30 min apart, prices can differ hugely<br>• <b>DEN</b> — cheap gateway to ski towns (Vail, Breckenridge, Aspen are 1.5-3hr drives)<br>• <b>ORD/MDW</b> — both serve Chicago<br>• <b>DFW/DAL</b> — both serve Dallas (Frontier flies to DFW)<br>• <b>LAX/ONT/SNA</b> — all serve the LA area<br><b>Pro tip:</b> Before booking an expensive GoWild fare, search airports within a 2-4 hour drive of your real destination. A $16 flight + $30 rental car beats a $145 flight every time. Use the "To" field in this tool to quickly compare prices on Frontier\'s site.', tags:'nearby airport alternative cheaper price save money drive rental car hack compare SFO FLL MIA DEN ORD LAX budget', cat:'Insider Tips' },
 ];
 
-const HELP_SUGGESTIONS = ['booking window','bag sizes & fees','2026 blackout dates','international taxes','credit card pairing','TSA PreCheck','pack carry-on only','1491 Club tool','digital nomad','new 2026 routes','Southwest backup','break even math'];
+const HELP_SUGGESTIONS = ['booking window','bag sizes & fees','2026 blackout dates','international taxes','credit card pairing','TSA PreCheck','pack carry-on only','1491 Club tool','digital nomad','new 2026 routes','Southwest backup','break even math','nearby airport hack','no-show rules','cancel a flight','seat selection','pets on Frontier','red-eye flights','WiFi on board?','elite status perks','same-day changes','best days to fly intl','DEN terminal guide','ATL terminal guide','MCO terminal guide','travel insurance','auto-renewal trap','how to earn miles','kids & family travel','spring break strategy','airport parking tips'];
 
 function searchHelp(query) {
     if (!query || query.length < 2) return [];
@@ -1487,9 +1682,25 @@ helpInput.addEventListener('input', () => {
 });
 
 // Render suggestion chips
-document.getElementById('helpSugs').innerHTML = HELP_SUGGESTIONS.map(s =>
+const sugEl = document.getElementById('helpSugs');
+sugEl.innerHTML = HELP_SUGGESTIONS.map(s =>
     `<span class="help-sug" onclick="helpInput.value='${s}';submitHelp()">${s}</span>`
 ).join('');
+
+// Suggestion scroll buttons
+function scrollSugs(dir) {
+    sugEl.scrollBy({ left: dir * 200, behavior: 'smooth' });
+}
+function updateSugScrollButtons() {
+    const l = document.getElementById('sugScrollL');
+    const r = document.getElementById('sugScrollR');
+    const canScroll = sugEl.scrollWidth > sugEl.clientWidth;
+    l.classList.toggle('hidden', !canScroll || sugEl.scrollLeft < 5);
+    r.classList.toggle('hidden', !canScroll || sugEl.scrollLeft + sugEl.clientWidth >= sugEl.scrollWidth - 5);
+}
+sugEl.addEventListener('scroll', updateSugScrollButtons);
+window.addEventListener('resize', updateSugScrollButtons);
+setTimeout(updateSugScrollButtons, 100);
 </script>
 </body>
 </html>
